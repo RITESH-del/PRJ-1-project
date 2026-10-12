@@ -89,3 +89,9 @@ target/
 
 # Mypy cache
 .mypy_cache/
+
+/gpu-utilization-workspace/
+
+.pytest_cache
+
+user_manual.pdf

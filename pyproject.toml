@@ -7,8 +7,12 @@ authors = [
     { name = "RITESH-del", email = "riteshrishu2005@gmail.com" }
 ]
 requires-python = ">=3.12"
-dependencies = []
-
+dependencies = [
+    "ipykernel>=7.4.0",
+    "jupyterlab>=4.6.4",
+    "numpy>=2.0",
+    "opencv-python-headless>=4.10",
+]
 [project.scripts]
 tb-detection-model = "tb_detection_model:main"
 

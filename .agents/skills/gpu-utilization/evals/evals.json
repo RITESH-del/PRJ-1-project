@@ -1,0 +1,41 @@
+{
+  "skill_name": "gpu-utilization",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "I have a Slurm job on our NVIDIA Base Command Manager cluster and want to know whether it actually received a GPU and how busy that GPU is. Give me a short, copy-pasteable check I can put in a batch script, plus the commands to inspect the allocation. Please distinguish GPU visibility, process presence, memory use, and compute utilization, and don't assume our partition or metric names.",
+      "expected_output": "A concise BCM-grounded Slurm answer with a --gres GPU request/check, nvidia-smi -L and nvidia-smi inside the allocation, scheduler inspection commands, and an explicit warning that metric/partition names are site-specific.",
+      "files": [],
+      "expectations": [
+        "The answer checks GPU state from inside the Slurm allocation rather than treating a login-node check as sufficient.",
+        "The answer includes nvidia-smi -L and nvidia-smi and a Slurm job inspection path such as squeue or scontrol show job.",
+        "The answer distinguishes allocation, visibility, process presence, memory use, and runtime compute utilization.",
+        "The answer marks partition, GRES, metric, and CUDA-version values as cluster-specific placeholders."
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "Our PBS/OpenPBS GPU job is queued and I am not sure whether the request is wrong or the cluster is busy. Based on the BCM 11 user manual, show a minimal PBS GPU request, how to submit and inspect it, and what to do if ngpus or gpu_id is rejected. Do not invent a resource name for my site.",
+      "expected_output": "A PBS-specific answer using the manual's ngpus/gpu_id examples as illustrative administrator-configured resources, qsub/qstat checks, and a safe branch for rejected resource names.",
+      "files": [],
+      "expectations": [
+        "The answer gives a minimal PBS script or resource request with a clearly labeled illustrative GPU resource.",
+        "The answer includes qsub submission and qstat status/detail inspection.",
+        "The answer explains that PBS GPU resource names are administrator-configured and does not silently replace rejected ngpus or gpu_id values.",
+        "The answer separates a pending scheduler allocation from runtime GPU utilization and recommends nvidia-smi only after allocation."
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "I need a historical GPU-usage view for my account in BCM, not just a one-shot terminal snapshot. Where should I look in the User Portal, and how can I avoid confusing a memory or allocation graph with actual compute utilization? Also mention the Jupyter option if the work runs in a notebook.",
+      "expected_output": "A portal-focused answer covering Monitoring mode, Accounting and Reporting/PromQL, scope and metric interpretation, and administrator-provided Jupyter GPU templates with in-kernel verification.",
+      "files": [],
+      "expectations": [
+        "The answer directs the user to User Portal Monitoring mode for measurable plots and explains that metric names are cluster-specific.",
+        "The answer mentions Accounting and Reporting mode with administrator-approved PromQL and available export options.",
+        "The answer explicitly distinguishes memory use/allocation from runtime compute utilization and asks the user to verify units and aggregation.",
+        "The answer mentions Jupyter Kernel Creator GPU template options and recommends verifying visibility inside the running kernel."
+      ]
+    }
+  ]
+}

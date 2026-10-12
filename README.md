@@ -52,6 +52,30 @@ Project Organization
     └── tox.ini            <- tox file with settings for running tox; see tox.readthedocs.io
 
 
+Data preprocessing
+-------------------
+
+Install the runtime dependencies, then build the processed dataset:
+
+```bash
+python src/data/make_dataset.py data/raw data/processed
+```
+
+The script reads labelled images from every ZIP archive in `data/raw`, removes
+duplicate archive copies, applies the preprocessing in
+`notebooks/02_data_preprocessing.ipynb`, and writes uint8 PNGs to:
+
+```text
+data/processed/{train,val,test}/{TB,Normal}/
+```
+
+Splits use a deterministic seed (`42` by default) and keep all images from a
+patient in the same split. The fixed mean/std values from the notebook are
+available through `normalize_xray`; normalization is applied when loading the
+PNG for model input because normalized float32 values cannot be stored directly
+in the requested PNG artifacts. A CSV manifest is written beside the split
+folders.
+
 --------
 
 <p><small>Project based on the <a target="_blank" href="https://drivendata.github.io/cookiecutter-data-science/">cookiecutter data science project template</a>. #cookiecutterdatascience</small></p>

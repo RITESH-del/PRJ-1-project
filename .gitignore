@@ -97,3 +97,5 @@ target/
 user_manual.pdf
 
 /output/
+
+/models/

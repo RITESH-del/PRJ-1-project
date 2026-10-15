@@ -25,7 +25,7 @@ IMAGE_SUFFIXES = {".jpeg", ".jpg", ".png"}
 SPLITS = ("train", "val", "test")
 LABELS = ("TB", "Normal")
 SPLIT_RATIOS = {"train": 0.70, "val": 0.15, "test": 0.15}
-TARGET_SIZE = (224, 224)
+TARGET_SIZE = (518, 518)
 TRAIN_MEAN = 0.61313236
 TRAIN_STD = 0.25896055
 LOG_LEVELS = frozenset(
@@ -60,11 +60,16 @@ class DatasetConfig:
     train_std: float = TRAIN_STD
     minimum_image_size: tuple[int, int] = (50, 50)
     minimum_image_mean: float = 5.0
-    roi_height_fraction: tuple[float, float] = (0.10, 0.90)
-    roi_width_fraction: tuple[float, float] = (0.05, 0.95)
-    median_blur_kernel: int = 3
-    clahe_clip_limit: float = 2.0
-    clahe_tile_grid_size: tuple[int, int] = (8, 8)
+    roi_mode: str = "anatomical"
+    roi_height_fraction: tuple[float, float] = (0.02, 0.98)
+    roi_width_fraction: tuple[float, float] = (0.02, 0.98)
+    median_blur_kernel: int = 0
+    bilateral_filter: bool = True
+    bilateral_d: int = 5
+    bilateral_sigma_color: float = 30.0
+    bilateral_sigma_space: float = 30.0
+    clahe_clip_limit: float = 1.5
+    clahe_tile_grid_size: tuple[int, int] = (16, 16)
     scan_log_interval: int = 1000
     process_log_interval: int = 100
     manifest_fields: tuple[str, ...] = (
@@ -142,22 +147,45 @@ class DatasetConfig:
             errors.append("split ratios must sum to 1.0")
         return errors
 
-    def _validate_preprocessing(self) -> list[str]:
+    def _validate_preprocessing_rois(self) -> list[str]:
         errors: list[str] = []
+        if self.roi_mode not in {"anatomical", "fractional"}:
+            errors.append("roi_mode must be 'anatomical' or 'fractional'")
+        if not self._valid_fraction(self.roi_height_fraction):
+            errors.append("roi_height_fraction must be an increasing range")
+        if not self._valid_fraction(self.roi_width_fraction):
+            errors.append("roi_width_fraction must be an increasing range")
+        return errors
+
+    def _validate_preprocessing_filters(self) -> list[str]:
+        errors: list[str] = []
+        if self.median_blur_kernel != 0 and (
+            self.median_blur_kernel < 1 or self.median_blur_kernel % 2 == 0
+        ):
+            errors.append(
+                "median_blur_kernel must be 0 or a positive odd integer"
+            )
+        if self.bilateral_d < 0:
+            errors.append("bilateral_d must be non-negative")
+        if self.bilateral_sigma_color <= 0:
+            errors.append("bilateral_sigma_color must be positive")
+        if self.bilateral_sigma_space <= 0:
+            errors.append("bilateral_sigma_space must be positive")
+        return errors
+
+    def _validate_preprocessing(self) -> list[str]:
+        errors = (
+            self._validate_preprocessing_rois()
+            + self._validate_preprocessing_filters()
+        )
         if not self._positive_int_pair(self.minimum_image_size):
             errors.append(
                 "minimum_image_size must contain two positive integers"
             )
         if self.train_std <= 0:
             errors.append("train_std must be positive")
-        if self.median_blur_kernel < 1 or self.median_blur_kernel % 2 == 0:
-            errors.append("median_blur_kernel must be a positive odd integer")
         if not self._positive_int_pair(self.clahe_tile_grid_size):
             errors.append("clahe_tile_grid_size must be positive integers")
-        if not self._valid_fraction(self.roi_height_fraction):
-            errors.append("roi_height_fraction must be an increasing range")
-        if not self._valid_fraction(self.roi_width_fraction):
-            errors.append("roi_width_fraction must be an increasing range")
         if self.minimum_image_mean < 0:
             errors.append("minimum_image_mean must be non-negative")
         if self.clahe_clip_limit <= 0:
@@ -311,8 +339,9 @@ def resize_with_padding(
     scale = min(target_height / height, target_width / width)
     new_height = max(1, int(height * scale))
     new_width = max(1, int(width * scale))
+    interp = cv2.INTER_AREA if scale < 1.0 else cv2.INTER_LANCZOS4
     resized = cv2.resize(
-        image, (new_width, new_height), interpolation=cv2.INTER_AREA
+        image, (new_width, new_height), interpolation=interp
     )
 
     pad_height = target_height - new_height
@@ -346,6 +375,188 @@ def normalize_xray(
     return (scaled - train_mean) / train_std
 
 
+def _fallback_roi(
+    height: int,
+    width: int,
+    h_frac: tuple[float, float],
+    w_frac: tuple[float, float],
+) -> tuple[int, int, int, int]:
+    top = max(0, min(height - 1, int(h_frac[0] * height)))
+    bottom = max(top + 1, min(height, int(h_frac[1] * height)))
+    left = max(0, min(width - 1, int(w_frac[0] * width)))
+    right = max(left + 1, min(width, int(w_frac[1] * width)))
+    return top, bottom, left, right
+
+
+def _find_body_bbox(
+    image: np.ndarray,
+    scale: float,
+) -> tuple[int, int, int, int] | None:
+    sh, sw = image.shape[:2]
+    blurred = cv2.GaussianBlur(image, (5, 5), 0)
+    _, thresh = cv2.threshold(
+        blurred, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU
+    )
+    k = max(5, int(min(sh, sw) * 0.05))
+    k = k if k % 2 == 1 else k + 1
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (k, k))
+    closed = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, kernel)
+    contours, _ = cv2.findContours(
+        closed, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+    )
+    if not contours:
+        return None
+    largest = max(contours, key=cv2.contourArea)
+    if cv2.contourArea(largest) < 0.15 * float(sh * sw):
+        return None
+    x, y, w, h = cv2.boundingRect(largest)
+    return int(x / scale), int(y / scale), int(w / scale), int(h / scale)
+
+
+def detect_thorax_roi(
+    image: np.ndarray,
+    *,
+    config: DatasetConfig | None = None,
+) -> tuple[int, int, int, int]:
+    """Detect anatomical thoracic bounding box preserving lung apices."""
+    height, width = image.shape[:2]
+    h_frac = config.roi_height_fraction if config else (0.02, 0.98)
+    w_frac = config.roi_width_fraction if config else (0.02, 0.98)
+    fallback = _fallback_roi(height, width, h_frac, w_frac)
+    if min(height, width) < 10 or float(np.std(image)) < 1.0:
+        return fallback
+
+    max_dim = max(height, width)
+    scale = 512.0 / max_dim if max_dim > 512 else 1.0
+    sw, sh = max(1, int(width * scale)), max(1, int(height * scale))
+    small = (
+        cv2.resize(image, (sw, sh), interpolation=cv2.INTER_AREA)
+        if scale < 1.0
+        else image
+    )
+    bbox = _find_body_bbox(small, scale)
+    if bbox is None:
+        return fallback
+
+    orig_x, orig_y, orig_w, orig_h = bbox
+    m_y, m_x = int(0.02 * height), int(0.02 * width)
+    top, bottom = max(0, orig_y - m_y), min(height, orig_y + orig_h + m_y)
+    left, right = max(0, orig_x - m_x), min(width, orig_x + orig_w + m_x)
+    if (bottom - top) < int(0.2 * height) or (right - left) < int(0.2 * width):
+        return fallback
+    return top, bottom, left, right
+
+
+def _find_lung_contours(
+    thresh: np.ndarray,
+    h: int,
+    w: int,
+) -> list[np.ndarray]:
+    k = max(5, int(min(h, w) * 0.03))
+    k = k if k % 2 == 1 else k + 1
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (k, k))
+    closed = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, kernel)
+    k_sm = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
+    opened = cv2.morphologyEx(closed, cv2.MORPH_OPEN, k_sm)
+    contours, _ = cv2.findContours(
+        opened, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+    )
+    total_area = float(h * w)
+    valid = [
+        c for c in contours
+        if 0.02 * total_area < cv2.contourArea(c) < 0.75 * total_area
+    ]
+    valid.sort(key=cv2.contourArea, reverse=True)
+    return valid
+
+
+def generate_lung_mask(image: np.ndarray) -> np.ndarray:
+    """Generate anatomical lung field mask."""
+    h, w = image.shape[:2]
+    fallback = np.full_like(image, 255)
+    if min(h, w) < 20 or float(np.std(image)) < 1.0:
+        return fallback
+
+    blurred = cv2.GaussianBlur(image, (5, 5), 0)
+    _, thresh = cv2.threshold(
+        blurred, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU
+    )
+    by, bx = max(1, int(0.04 * h)), max(1, int(0.04 * w))
+    thresh[:by, :] = 0
+    thresh[-by:, :] = 0
+    thresh[:, :bx] = 0
+    thresh[:, -bx:] = 0
+
+    valid = _find_lung_contours(thresh, h, w)
+    if not valid:
+        return fallback
+
+    mask = np.zeros_like(image)
+    cv2.drawContours(mask, valid[:2], -1, 255, thickness=cv2.FILLED)
+    d_k = max(3, int(min(h, w) * 0.02))
+    d_k = d_k if d_k % 2 == 1 else d_k + 1
+    d_kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (d_k, d_k))
+    return cv2.dilate(mask, d_kernel)
+
+
+def compute_high_pass_residual(image: np.ndarray) -> np.ndarray:
+    """Compute high-contrast edge residual highlighting cavitary borders."""
+    blurred = cv2.GaussianBlur(image, (9, 9), 2.0)
+    diff = cv2.absdiff(image, blurred)
+    return cv2.normalize(diff, None, 0, 255, cv2.NORM_MINMAX)
+
+
+def _ensure_radiologic_polarity(image: np.ndarray) -> np.ndarray:
+    h, w = image.shape[:2]
+    ch, cw = max(1, h // 10), max(1, w // 10)
+    corners = (
+        image[:ch, :cw],
+        image[:ch, -cw:],
+        image[-ch:, :cw],
+        image[-ch:, -cw:],
+    )
+    corner_mean = float(np.mean([c.mean() for c in corners]))
+    center = image[h // 4: 3 * h // 4, w // 4: 3 * w // 4]
+    center_mean = float(center.mean()) if center.size > 0 else 0.0
+    if corner_mean > 150.0 and corner_mean > (center_mean + 20.0):
+        return 255 - image
+    return image
+
+
+def _normalize_dynamic_range(image: np.ndarray) -> np.ndarray:
+    non_zero = image[image > 0]
+    if non_zero.size == 0:
+        return image
+    p_low = float(np.percentile(non_zero, 0.5))
+    p_high = float(np.percentile(non_zero, 99.5))
+    if p_high <= p_low:
+        return image
+    clipped = np.clip(image, p_low, p_high)
+    stretched = (clipped - p_low) / (p_high - p_low) * 255.0
+    return stretched.astype(np.uint8)
+
+
+def harmonize_xray_radiometry(
+    image: np.ndarray,
+    *,
+    config: DatasetConfig | None = None,
+) -> np.ndarray:
+    """Harmonize digital detector dynamic range and contrast across cohorts."""
+    image = _ensure_radiologic_polarity(image)
+    image = _normalize_dynamic_range(image)
+
+    h, w = image.shape[:2]
+    clip_limit = config.clahe_clip_limit if config else 1.5
+    tile_grid = config.clahe_tile_grid_size if config else None
+    if tile_grid is None:
+        th = max(4, int(round(h / 32.0)))
+        tw = max(4, int(round(w / 32.0)))
+        tile_grid = (th, tw)
+
+    clahe = cv2.createCLAHE(clipLimit=clip_limit, tileGridSize=tile_grid)
+    return clahe.apply(image)
+
+
 def preprocess_xray(
     image_source: str | Path | np.ndarray,
     target_size: tuple[int, int] | None = None,
@@ -374,17 +585,25 @@ def preprocess_xray(
     train_mean = config.train_mean if train_mean is None else train_mean
     train_std = config.train_std if train_std is None else train_std
     height, width = image.shape
-    height_start, height_end = config.roi_height_fraction
-    width_start, width_end = config.roi_width_fraction
-    top, bottom = int(height_start * height), int(height_end * height)
-    left, right = int(width_start * width), int(width_end * width)
+    if config.roi_mode == "anatomical":
+        top, bottom, left, right = detect_thorax_roi(image, config=config)
+    else:
+        height_start, height_end = config.roi_height_fraction
+        width_start, width_end = config.roi_width_fraction
+        top, bottom = int(height_start * height), int(height_end * height)
+        left, right = int(width_start * width), int(width_end * width)
     roi = image[top:bottom, left:right]
+    if config.bilateral_filter and roi.size > 0:
+        roi = cv2.bilateralFilter(
+            roi,
+            d=config.bilateral_d,
+            sigmaColor=config.bilateral_sigma_color,
+            sigmaSpace=config.bilateral_sigma_space,
+        )
     image = resize_with_padding(roi, target_size)
-    image = cv2.medianBlur(image, config.median_blur_kernel)
-    image = cv2.createCLAHE(
-        clipLimit=config.clahe_clip_limit,
-        tileGridSize=config.clahe_tile_grid_size,
-    ).apply(image)
+    if config.median_blur_kernel > 0:
+        image = cv2.medianBlur(image, config.median_blur_kernel)
+    image = harmonize_xray_radiometry(image, config=config)
     image = image.astype(np.uint8, copy=False)
     return (
         normalize_xray(

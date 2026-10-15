@@ -10,6 +10,10 @@ import numpy as np
 from src.data.make_dataset import (
     DatasetConfig,
     build_dataset,
+    compute_high_pass_residual,
+    detect_thorax_roi,
+    generate_lung_mask,
+    harmonize_xray_radiometry,
     normalize_xray,
     preprocess_xray,
 )
@@ -62,12 +66,12 @@ def test_preprocess_xray_preserves_shape_and_normalizes_on_request():
     image = np.full((80, 100), 100, dtype=np.uint8)
     processed = preprocess_xray(image)
     assert processed is not None
-    assert processed.shape == (224, 224)
+    assert processed.shape == (518, 518)
     assert processed.dtype == np.uint8
 
     normalized = preprocess_xray(image, normalize=True)
     assert normalized is not None
-    assert normalized.shape == (224, 224)
+    assert normalized.shape == (518, 518)
     assert normalized.dtype == np.float32
     np.testing.assert_allclose(normalized, normalize_xray(processed))
 
@@ -91,6 +95,88 @@ def test_preprocess_xray_uses_dataset_config_defaults():
         normalized,
         normalize_xray(processed, config=config),
     )
+
+
+def test_target_size_518():
+    image = np.full((120, 150), 100, dtype=np.uint8)
+    processed = preprocess_xray(image)
+    assert processed is not None
+    assert processed.shape == (518, 518)
+    assert processed.dtype == np.uint8
+    assert 0 <= processed.min() <= processed.max() <= 255
+
+    normalized = preprocess_xray(image, normalize=True)
+    assert normalized is not None
+    assert normalized.shape == (518, 518)
+    assert normalized.dtype == np.float32
+    np.testing.assert_allclose(normalized, normalize_xray(processed))
+
+
+def test_detect_thorax_roi_fallback():
+    flat = np.full((100, 100), 128, dtype=np.uint8)
+    top, bottom, left, right = detect_thorax_roi(flat)
+    assert (top, bottom, left, right) == (2, 98, 2, 98)
+
+
+def test_preprocess_apical_preservation():
+    img = np.zeros((500, 500), dtype=np.uint8)
+    img[20:480, 30:470] = 120
+    img[25:35, 150:200] = 250
+
+    old_config = DatasetConfig(
+        roi_mode="fractional",
+        roi_height_fraction=(0.10, 0.90),
+    )
+    processed_old = preprocess_xray(img, config=old_config)
+    new_config = DatasetConfig(roi_mode="anatomical")
+    processed_new = preprocess_xray(img, config=new_config)
+
+    assert processed_old is not None
+    assert processed_new is not None
+    assert processed_old[:30, :].max() < 10
+    assert processed_new[:30, :].max() > 200
+
+
+def test_preprocess_bilateral_preserves_details_without_median_blur():
+    config = DatasetConfig()
+    assert config.median_blur_kernel == 0
+    assert config.bilateral_filter is True
+
+    img = np.full((100, 100), 100, dtype=np.uint8)
+    img[48:52, 48:52] = 230
+    processed = preprocess_xray(img, config=config)
+    assert processed is not None
+    assert processed.max() > 100
+
+
+def test_harmonize_xray_radiometry_inverts_photonegative():
+    standard = np.zeros((200, 200), dtype=np.uint8)
+    standard[40:160, 40:160] = 180
+    photonegative = 255 - standard
+
+    h_std = harmonize_xray_radiometry(standard)
+    h_inv = harmonize_xray_radiometry(photonegative)
+
+    assert h_inv[100, 100] > 100
+    assert h_inv[5, 5] < 50
+    np.testing.assert_allclose(h_std, h_inv, atol=5)
+
+
+def test_generate_lung_mask_and_high_pass_residual():
+    img = np.full((200, 200), 160, dtype=np.uint8)
+    img[40:150, 30:80] = 50
+    img[40:150, 120:170] = 50
+
+    mask = generate_lung_mask(img)
+    assert mask.shape == (200, 200)
+    assert mask.dtype == np.uint8
+    assert mask[80, 50] == 255
+    assert mask[80, 140] == 255
+
+    residual = compute_high_pass_residual(img)
+    assert residual.shape == (200, 200)
+    assert residual.dtype == np.uint8
+    assert residual[40, 50] > 0
 
 
 def test_build_dataset_writes_configured_output_suffix(tmp_path):
@@ -148,7 +234,7 @@ def test_build_dataset_is_patient_grouped_stratified_and_reproducible(
         assert image_path.is_file()
         decoded = cv2.imread(str(image_path), cv2.IMREAD_GRAYSCALE)
         assert decoded is not None
-        assert decoded.shape == (224, 224)
+        assert decoded.shape == (518, 518)
 
     for split in ("train", "val", "test"):
         for label in ("TB", "Normal"):

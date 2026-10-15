@@ -142,3 +142,275 @@ level = "ERROR"
         cv2.IMREAD_GRAYSCALE,
     )
     assert image.shape == (64, 72)
+
+
+def test_model_command_discovery():
+    result = runner.invoke(app, ["model", "--help"])
+    assert result.exit_code == 0
+    assert "train" in result.stdout
+    assert "evaluate" in result.stdout
+    assert "predict" in result.stdout
+
+    train_help = runner.invoke(app, ["model", "train", "--help"])
+    assert train_help.exit_code == 0
+    assert "--epochs" in train_help.stdout
+    assert "--lr" in train_help.stdout
+    assert "--k8s-gpu" in train_help.stdout
+
+
+def test_model_train_and_predict_cli(tmp_path):
+    data_dir = tmp_path / "processed"
+    for split in ("train", "val", "test"):
+        for label in ("TB", "Normal"):
+            folder = data_dir / split / label
+            folder.mkdir(parents=True)
+            for i in range(2):
+                img = np.full((224, 224), 80 + i * 30, dtype=np.uint8)
+                cv2.imwrite(str(folder / f"sample_{i}.png"), img)
+
+    output_dir = tmp_path / "model_out"
+    report_dir = tmp_path / "reports_out"
+
+    train_res = runner.invoke(
+        app,
+        [
+            "model",
+            "train",
+            "--data-dir",
+            str(data_dir),
+            "--output-dir",
+            str(output_dir),
+            "--report-dir",
+            str(report_dir),
+            "--epochs",
+            "1",
+            "--batch-size",
+            "2",
+            "--device",
+            "cpu",
+            "--freeze-backbone",
+            "--num-workers",
+            "0",
+        ],
+    )
+    assert train_res.exit_code == 0, train_res.stdout
+    assert (output_dir / "best_model.pt").exists()
+    assert (report_dir / "metrics_test.json").exists()
+    assert (report_dir / "dinov2_evaluation_report_test.md").exists()
+
+    test_img = data_dir / "test" / "TB" / "sample_0.png"
+    pred_res = runner.invoke(
+        app,
+        [
+            "model",
+            "predict",
+            "--image",
+            str(test_img),
+            "--model-path",
+            str(output_dir),
+            "--device",
+            "cpu",
+            "--json",
+        ],
+    )
+    assert pred_res.exit_code == 0, pred_res.stdout
+    pred_data = json.loads(pred_res.stdout)
+    assert pred_data["label"] in ("TB", "Normal")
+    assert "probabilities" in pred_data
+
+
+def test_densenet121_train_and_predict_cli(tmp_path):
+    data_dir = tmp_path / "processed"
+    for split in ("train", "val", "test"):
+        for label in ("TB", "Normal"):
+            folder = data_dir / split / label
+            folder.mkdir(parents=True)
+            for i in range(2):
+                img = np.full((224, 224), 90 + i * 20, dtype=np.uint8)
+                cv2.imwrite(str(folder / f"sample_{i}.png"), img)
+
+    output_dir = tmp_path / "densenet_out"
+    report_dir = tmp_path / "reports_out"
+
+    train_res = runner.invoke(
+        app,
+        [
+            "model",
+            "train",
+            "--data-dir",
+            str(data_dir),
+            "--output-dir",
+            str(output_dir),
+            "--report-dir",
+            str(report_dir),
+            "--model-name",
+            "densenet121",
+            "--epochs",
+            "1",
+            "--batch-size",
+            "2",
+            "--device",
+            "cpu",
+            "--freeze-backbone",
+            "--num-workers",
+            "0",
+        ],
+    )
+    assert train_res.exit_code == 0, train_res.stdout
+    assert (output_dir / "best_model.pt").exists()
+    assert (report_dir / "densenet121_evaluation_report_test.md").exists()
+    assert (report_dir / "metrics_densenet121_test.json").exists()
+
+    test_img = data_dir / "test" / "TB" / "sample_0.png"
+    pred_res = runner.invoke(
+        app,
+        [
+            "model",
+            "predict",
+            "--image",
+            str(test_img),
+            "--model-path",
+            str(output_dir),
+            "--device",
+            "cpu",
+            "--json",
+        ],
+    )
+    assert pred_res.exit_code == 0, pred_res.stdout
+    pred_data = json.loads(pred_res.stdout)
+    assert pred_data["label"] in ("TB", "Normal")
+    assert "probabilities" in pred_data
+
+
+def test_model_train_top_k_and_eval_val_cli(tmp_path):
+    data_dir = tmp_path / "processed"
+    for split in ("train", "val", "test"):
+        for label in ("TB", "Normal"):
+            folder = data_dir / split / label
+            folder.mkdir(parents=True)
+            for i in range(2):
+                img = np.full((224, 224), 80 + i * 30, dtype=np.uint8)
+                cv2.imwrite(str(folder / f"sample_{i}.png"), img)
+
+    output_dir = tmp_path / "model_out"
+    report_dir = tmp_path / "reports_out"
+
+    train_res = runner.invoke(
+        app,
+        [
+            "model",
+            "train",
+            "--data-dir",
+            str(data_dir),
+            "--output-dir",
+            str(output_dir),
+            "--report-dir",
+            str(report_dir),
+            "--epochs",
+            "1",
+            "--batch-size",
+            "2",
+            "--train-top-k",
+            "2",
+            "--patience",
+            "2",
+            "--auto-class-weights",
+            "--eval-split",
+            "val",
+            "--device",
+            "cpu",
+            "--num-workers",
+            "0",
+        ],
+    )
+    assert train_res.exit_code == 0, train_res.stdout
+    assert (output_dir / "best_model.pt").exists()
+    assert (report_dir / "metrics_val.json").exists()
+    with open(report_dir / "metrics_val.json", encoding="utf-8") as f:
+        metrics = json.load(f)
+    assert "sensitivity" in metrics
+    assert "specificity" in metrics
+
+
+def test_model_list_cli():
+    res = runner.invoke(app, ["model", "list"])
+    assert res.exit_code == 0, res.stdout
+    assert "Available Models & Performance Benchmarks" in res.stdout
+    assert "dinov2_518" in res.stdout
+
+    res_json = runner.invoke(app, ["model", "list", "--json"])
+    assert res_json.exit_code == 0, res_json.stdout
+    data = json.loads(res_json.stdout)
+    assert isinstance(data, list)
+    assert len(data) > 0
+    names = [m["name"] for m in data]
+    assert "dinov2_518" in names
+    assert "densenet121" in names
+
+    res_val = runner.invoke(app, ["model", "list", "--split", "val"])
+    assert res_val.exit_code == 0, res_val.stdout
+    assert "Split: val" in res_val.stdout
+
+
+def test_model_info_cli():
+    res = runner.invoke(app, ["model", "info", "dinov2_518"])
+    assert res.exit_code == 0, res.stdout
+    assert "Model: dinov2_518" in res.stdout
+    assert "Architecture: facebook/dinov2-small" in res.stdout
+    assert "Checkpoints:" in res.stdout
+    assert "TEST Split Metrics" in res.stdout
+
+    res_json = runner.invoke(app, ["model", "info", "dinov2_518", "--json"])
+    assert res_json.exit_code == 0, res_json.stdout
+    info = json.loads(res_json.stdout)
+    assert info["name"] == "dinov2_518"
+    assert "metrics" in info
+    assert "test" in info["metrics"]
+
+    res_err = runner.invoke(app, ["model", "info", "nonexistent_model_xyz"])
+    assert res_err.exit_code != 0
+
+
+def test_model_benchmark_cli():
+    res = runner.invoke(app, ["model", "benchmark"])
+    assert res.exit_code == 0, res.stdout
+    assert "Reference Model Benchmark Summary" in res.stdout
+    assert "Held-Out Test Set Performance Benchmark" in res.stdout
+    assert "Clinical & Engineering Insights" in res.stdout
+
+    res_json = runner.invoke(app, ["model", "benchmark", "--json"])
+    assert res_json.exit_code == 0, res_json.stdout
+    bench = json.loads(res_json.stdout)
+    assert "benchmarks_test" in bench
+    assert "dataset_splits" in bench
+    assert len(bench["benchmarks_test"]) >= 5
+
+
+def test_model_list_custom_temp_dir(tmp_path):
+    mock_models = tmp_path / "custom_models"
+    mock_reports = tmp_path / "custom_reports"
+    model_dir = mock_models / "mock_vit"
+    model_dir.mkdir(parents=True)
+    (model_dir / "config.json").write_text(
+        json.dumps({"model_type": "dinov2", "image_size": 224})
+    )
+    (model_dir / "best_model.pt").write_bytes(b"mock_checkpoint_data")
+
+    res = runner.invoke(
+        app,
+        [
+            "model",
+            "list",
+            "--models-dir",
+            str(mock_models),
+            "--reports-dir",
+            str(mock_reports),
+            "--json",
+        ],
+    )
+    assert res.exit_code == 0, res.stdout
+    data = json.loads(res.stdout)
+    assert len(data) == 1
+    assert data[0]["name"] == "mock_vit"
+    assert data[0]["resolution"] == "224x224"
+    assert data[0]["checkpoint_count"] == 1

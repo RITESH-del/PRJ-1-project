@@ -136,13 +136,79 @@ tb-detection-model data interim     legacy sampling compatibility command
 tb-detection-model config init
 tb-detection-model config show
 tb-detection-model config validate
+tb-detection-model model train      train DINOv2 / DenseNet121 on processed data
+tb-detection-model model evaluate   evaluate model on test/val split and report
+tb-detection-model model predict    run inference on individual chest X-ray
+tb-detection-model model list       list trained models, checkpoints, and performance benchmarks
+tb-detection-model model info       inspect detailed metadata, checkpoints, and metrics for a model
+tb-detection-model model benchmark  display reference model benchmarks and clinical comparison analysis
+
+Model commands support `--config` and CLI overrides. When running in cluster
+environments with GPU worker nodes, `--k8s-gpu` schedules the training job on
+the worker node with dedicated NVIDIA MIG GPU resources.
+
+```bash
+# 1. Establish DINOv2 frozen-backbone baseline (evaluated on val split)
+.venv/bin/tb-detection-model model train \
+  --k8s-gpu \
+  --freeze-backbone \
+  --epochs 3 \
+  --batch-size 64 \
+  --lr 1e-3 \
+  --eval-split val \
+  --output-dir models/dinov2_frozen \
+  --report-dir reports/dinov2_frozen
+
+# 2. Partial fine-tuning of final 2 Transformer blocks with differential LR
+.venv/bin/tb-detection-model model train \
+  --k8s-gpu \
+  --train-top-k 2 \
+  --epochs 4 \
+  --batch-size 64 \
+  --lr 5e-4 \
+  --backbone-lr 5e-5 \
+  --patience 3 \
+  --eval-split val \
+  --output-dir models/dinov2_top2 \
+  --report-dir reports/dinov2_top2
+
+# 3. Train DenseNet121 baseline on GPU
+.venv/bin/tb-detection-model model train \
+  --k8s-gpu \
+  --model-name densenet121 \
+  --output-dir models/densenet121 \
+  --epochs 3 \
+  --batch-size 64 \
+  --lr 1e-4 \
+  --eval-split val
+
+# 4. Evaluate checkpoint on test split (after model selection)
+.venv/bin/tb-detection-model model evaluate \
+  --model-path models/dinov2_top2 \
+  --split test \
+  --report-dir reports/dinov2_top2
+
+# 5. Classify an individual image
+.venv/bin/tb-detection-model model predict \
+  --image data/processed/test/Normal/00000002_000.png \
+  --json
+
+# 6. List all available models and their evaluation metrics
+.venv/bin/tb-detection-model model list
+.venv/bin/tb-detection-model model list --split test --json
+
+# 7. Inspect detailed model metadata, checkpoints, and confusion matrices
+.venv/bin/tb-detection-model model info dinov2_518
+.venv/bin/tb-detection-model model info dinov2_518 --json
+
+# 8. View reference model benchmarks and clinical comparison analysis
+.venv/bin/tb-detection-model model benchmark
+.venv/bin/tb-detection-model model benchmark --json
 ```
 
-Do not expose model training, prediction, or visualization placeholders as
-working commands. `data validate` is intentionally discoverable but fails
-with an actionable unsupported message because
-`src/data/validate_processed.py` still references undefined helpers.
-
+`data validate` remains intentionally discoverable but fails with an actionable
+unsupported message because `src/data/validate_processed.py` references
+undefined helpers.
 ## Development and QA commands
 
 ```bash

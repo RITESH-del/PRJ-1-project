@@ -1,0 +1,12 @@
+{
+  "eval_id": 1,
+  "eval_name": "full-cli-conversion",
+  "prompt": "Turn this repository's current data workflow into a user- and agent-friendly CLI. Users should be able to run the recommended ZIP-to-processed-dataset path and adjust paths, seed, archive assignments, split ratios, and preprocessing settings through a root-level TOML file or CLI overrides without editing Python. Expose the existing extraction, interim, validation, and dataset-builder scripts as discoverable commands, repair the installed console entry point if needed, add tests, and update both AGENTS.md and CONTRIBUTING.md with copy-pasteable commands and config precedence.",
+  "assertions": [
+    "The installed console entry point and root --help expose the CLI plus data/config command groups.",
+    "A root-level TOML configuration and explicit CLI override precedence cover the requested dataset settings without source edits.",
+    "Existing dataset and script implementations are called directly rather than duplicated or shell-launched from the new CLI.",
+    "Both AGENTS.md and CONTRIBUTING.md document the same canonical commands, config path, and precedence.",
+    "Focused tests and a temporary-fixture smoke path demonstrate the CLI works end to end."
+  ]
+}

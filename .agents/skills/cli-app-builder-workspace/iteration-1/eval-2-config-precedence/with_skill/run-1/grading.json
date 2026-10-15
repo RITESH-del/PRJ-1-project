@@ -1,0 +1,12 @@
+{
+  "expectations": [
+    {"text":"tb-detection.toml and config init/show/validate commands expose the requested dataset settings.","passed":true,"evidence":"result.md lines 7-8 list the Typer config commands and checked-in example; lines 15-17 document the settings and helpers."},
+    {"text":"The implementation maps configuration into the existing typed dataset configuration rather than maintaining duplicate preprocessing constants.","passed":true,"evidence":"result.md lines 5-7 describe typed DatasetConfig and retaining the existing preprocessing implementation."},
+    {"text":"The effective precedence is deterministic and CLI overrides take priority over config-file values.","passed":true,"evidence":"result.md line 15 explicitly gives defaults, root TOML, explicit --config, then explicit build options."},
+    {"text":"Invalid split ratios, dimensions, or other cross-field values fail during validation before processing begins with an actionable error.","passed":true,"evidence":"result.md line 17 reports positive-dimension checks, ratio sum/range checks, recognized logging levels, and preflight config validation."},
+    {"text":"Tests cover precedence and invalid configuration, and both command documents describe the same contract.","passed":false,"evidence":"result.md lines 9-11 report tests and synchronized docs were added, but lines 19-20 explicitly defer tests and smoke verification."}
+  ],
+  "summary":{"passed":4,"failed":1,"total":5,"pass_rate":0.8},
+  "claims":[{"claim":"Tests cover precedence and invalid configuration","type":"process","verified":false,"evidence":"Test execution was deferred; only the test file's existence is reported."}],
+  "eval_feedback":{"suggestions":[{"reason":"The implementation is well specified, but test execution is needed to verify the behavior rather than only the test source."}],"overall":"Configuration design and documentation are strongly evidenced; runtime verification is incomplete."}
+}

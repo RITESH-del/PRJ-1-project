@@ -1,0 +1,12 @@
+{
+  "eval_id": 2,
+  "eval_name": "config-precedence",
+  "prompt": "Make the dataset builder configurable for repeated experiments without source edits. Keep the existing preprocessing implementation as the source of truth, add a checked-in tb-detection.toml example plus config init/show/validate commands, and support CLI overrides for the seed, input/output directories, target image size, split ratios, and logging level. Reject invalid cross-field values before processing, test precedence and errors, and document the exact commands in AGENTS.md and CONTRIBUTING.md.",
+  "assertions": [
+    "tb-detection.toml and config init/show/validate commands expose the requested dataset settings.",
+    "The implementation maps configuration into the existing typed dataset configuration rather than maintaining duplicate preprocessing constants.",
+    "The effective precedence is deterministic and CLI overrides take priority over config-file values.",
+    "Invalid split ratios, dimensions, or other cross-field values fail during validation before processing begins with an actionable error.",
+    "Tests cover precedence and invalid configuration, and both command documents describe the same contract."
+  ]
+}

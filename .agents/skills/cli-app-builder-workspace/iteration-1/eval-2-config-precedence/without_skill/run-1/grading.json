@@ -1,0 +1,12 @@
+{
+  "expectations": [
+    {"text":"tb-detection.toml and config init/show/validate commands expose the requested dataset settings.","passed":false,"evidence":"result.md lines 6-13 state that no files were changed and no configuration commands were implemented."},
+    {"text":"The implementation maps configuration into the existing typed dataset configuration rather than maintaining duplicate preprocessing constants.","passed":false,"evidence":"No implementation was completed; result.md lines 6-10 report no files and no contract."},
+    {"text":"The effective precedence is deterministic and CLI overrides take priority over config-file values.","passed":false,"evidence":"result.md lines 9-13 state no precedence or overrides were implemented."},
+    {"text":"Invalid split ratios, dimensions, or other cross-field values fail during validation before processing begins with an actionable error.","passed":false,"evidence":"result.md lines 12-13 state validation and error behavior were not implemented."},
+    {"text":"Tests cover precedence and invalid configuration, and both command documents describe the same contract.","passed":false,"evidence":"result.md lines 6-13 report no implementation, tests, or documentation updates."}
+  ],
+  "summary":{"passed":0,"failed":5,"total":5,"pass_rate":0.0},
+  "claims":[],
+  "eval_feedback":{"suggestions":[{"reason":"This run produced no implementation, so the eval correctly exposes complete failure for every required outcome."}],"overall":"No required configuration behavior was delivered."}
+}

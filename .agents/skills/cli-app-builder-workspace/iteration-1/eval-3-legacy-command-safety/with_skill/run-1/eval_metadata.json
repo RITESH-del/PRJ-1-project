@@ -1,0 +1,12 @@
+{
+  "eval_id": 3,
+  "eval_name": "legacy-command-safety",
+  "prompt": "Add a safe command surface around all current data scripts in this Python repository. Include the recommended dataset command and clearly labeled legacy extract/interim commands, expose an incomplete validation script without pretending it works, and make every command discoverable through --help. Use the project's packaging conventions, avoid shelling out to source scripts, preserve raw data immutability, and report any unsupported command explicitly. Update the agent and contributor command references and run a smoke test with temporary input data.",
+  "assertions": [
+    "Help output exposes the recommended dataset command and clearly labeled extract, interim, and validation commands.",
+    "The incomplete validation path fails explicitly with an actionable unsupported/incomplete message instead of returning success.",
+    "The CLI calls real repository functions or gives a documented limitation; it does not shell out to source scripts or rewrite raw data.",
+    "AGENTS.md and CONTRIBUTING.md contain synchronized command references and identify the recommended versus legacy paths.",
+    "A temporary-input smoke run or focused test provides evidence for at least one real command and its exit behavior."
+  ]
+}

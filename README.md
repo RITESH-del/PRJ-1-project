@@ -55,26 +55,59 @@ Project Organization
 Data preprocessing
 -------------------
 
-Install the runtime dependencies, then build the processed dataset:
+Install and discover the supported command interface:
 
 ```bash
-python src/data/make_dataset.py data/raw data/processed
+uv sync
+.venv/bin/tb-detection-model --help
 ```
 
-The script reads labelled images from every ZIP archive in `data/raw`, removes
-duplicate archive copies, applies the preprocessing in
-`notebooks/02_data_preprocessing.ipynb`, and writes uint8 PNGs to:
+Build the processed dataset with the recommended workflow:
 
-```text
-data/processed/{train,val,test}/{TB,Normal}/
+```bash
+.venv/bin/tb-detection-model data build
 ```
 
-Splits use a deterministic seed (`42` by default) and keep all images from a
-patient in the same split. The fixed mean/std values from the notebook are
-available through `normalize_xray`; normalization is applied when loading the
-PNG for model input because normalized float32 values cannot be stored directly
-in the requested PNG artifacts. A CSV manifest is written beside the split
-folders.
+For source-segmented evaluation:
+
+```bash
+.venv/bin/tb-detection-model data build \
+  --seed 42 \
+  --train-archive nih.zip \
+  --train-archive mont_139.zip \
+  --validation-archive shenzen.zip \
+  --test-archive shenzen.zip
+```
+
+The checked-in `tb-detection.toml` configures paths, seed, archive
+assignments, split ratios, target size, preprocessing thresholds/options,
+manifest output, and logging. Relative paths are resolved from the TOML file.
+Effective precedence is built-in defaults, root `tb-detection.toml`, explicit
+`--config PATH`, then explicit CLI options:
+
+```bash
+.venv/bin/tb-detection-model config show --json
+.venv/bin/tb-detection-model config validate
+.venv/bin/tb-detection-model data build \
+  --input-dir /tmp/tb/raw \
+  --output-dir /tmp/tb/processed \
+  --target-size 192 192 \
+  --seed 17 \
+  --log-level WARNING
+```
+
+`config init` creates a documented starter file and refuses to overwrite one
+unless `--force` is supplied:
+
+```bash
+.venv/bin/tb-detection-model config init --path /tmp/tb-detection.toml
+```
+
+The legacy `data extract` and `data interim` commands remain available for
+compatibility. `data validate` is discoverable but intentionally fails with an
+unsupported message because the existing processed-data validator is
+incomplete. See `AGENTS.md` and `CONTRIBUTING.md` for the full command and
+configuration contract.
 
 --------
 

@@ -1,0 +1,32 @@
+# TB Detection Model experiment configuration.
+# Relative paths are resolved from this file's directory.
+
+[dataset]
+input_dir = "data/raw"
+output_dir = "data/processed"
+seed = 42
+target_size = [224, 224]
+manifest_filename = "manifest.csv"
+archive_glob = "*.zip"
+train_archives = []
+validation_archives = []
+test_archives = []
+
+[dataset.split_ratios]
+train = 0.70
+val = 0.15
+test = 0.15
+
+[preprocessing]
+minimum_image_size = [50, 50]
+minimum_image_mean = 5.0
+roi_height_fraction = [0.10, 0.90]
+roi_width_fraction = [0.05, 0.95]
+median_blur_kernel = 3
+clahe_clip_limit = 2.0
+clahe_tile_grid_size = [8, 8]
+
+[logging]
+level = "INFO"
+scan_log_interval = 1000
+process_log_interval = 100

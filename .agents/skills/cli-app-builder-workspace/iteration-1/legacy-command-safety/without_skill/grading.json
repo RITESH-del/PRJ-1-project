@@ -1,0 +1,12 @@
+{
+  "expectations": [
+    {"text":"Help output exposes the recommended dataset command and clearly labeled extract, interim, and validation commands.","passed":true,"evidence":"result.md lines 15-19 define dataset, legacy extract/interim, unsupported validate, and aliases; lines 30-36 report help checks."},
+    {"text":"The incomplete validation path fails explicitly with an actionable unsupported/incomplete message instead of returning success.","passed":true,"evidence":"result.md lines 18 and 24 state validate exits 2 with UNSUPPORTED and does not claim success; lines 35-36 report the observed exit."},
+    {"text":"The CLI calls real repository functions or gives a documented limitation; it does not shell out to source scripts or rewrite raw data.","passed":true,"evidence":"result.md lines 6-10 and 20-24 report direct Python imports, path-traversal protection, raw-read-only behavior, and explicit unsupported validation."},
+    {"text":"AGENTS.md and CONTRIBUTING.md contain synchronized command references and identify the recommended versus legacy paths.","passed":true,"evidence":"result.md line 11 reports both docs updated; lines 15-19 label recommended and legacy commands."},
+    {"text":"A temporary-input smoke run or focused test provides evidence for at least one real command and its exit behavior.","passed":true,"evidence":"result.md lines 30-36 report help, legacy temporary ZIP smoke tests, and explicit validate exit behavior."}
+  ],
+  "summary":{"passed":5,"failed":0,"total":5,"pass_rate":1.0},
+  "claims":[{"claim":"Raw archives remain unchanged","type":"factual","verified":true,"evidence":"result.md lines 20 and 35 report read-only raw behavior and SHA-256 preservation."}],
+  "eval_feedback":{"suggestions":[{"reason":"The assertions do not distinguish argparse from the requested Typer/TOML design; the baseline passes this legacy-safety set despite omitting the skill's preferred framework/config contract."}],"overall":"The baseline satisfies the legacy safety assertions, so these expectations are not discriminating for the skill's framework/config value."}
+}

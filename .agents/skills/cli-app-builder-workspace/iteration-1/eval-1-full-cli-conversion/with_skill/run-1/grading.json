@@ -1,0 +1,12 @@
+{
+  "expectations": [
+    {"text":"The installed console entry point and root --help expose the CLI plus data/config command groups.","passed":true,"evidence":"result.md lines 3-14 report the installed tb-detection-model entry point, module invocation, data commands, and config commands."},
+    {"text":"A root-level TOML configuration and explicit CLI override precedence cover the requested dataset settings without source edits.","passed":true,"evidence":"result.md lines 16-25 specify tb-detection.toml, defaults < default TOML < explicit --config < command options, and dataset/preprocessing/logging keys."},
+    {"text":"Existing dataset and script implementations are called directly rather than duplicated or shell-launched from the new CLI.","passed":true,"evidence":"result.md lines 27-35 describe packaged workflow adapters while preserving existing implementations; the report describes adapters and no shell execution."},
+    {"text":"Both AGENTS.md and CONTRIBUTING.md document the same canonical commands, config path, and precedence.","passed":true,"evidence":"result.md lines 36-40 explicitly report synchronized AGENTS.md and CONTRIBUTING.md coverage of install, commands, config precedence, legacy paths, and QA."},
+    {"text":"Focused tests and a temporary-fixture smoke path demonstrate the CLI works end to end.","passed":false,"evidence":"result.md lines 46-60 say syntax, lock, and wheel checks were attempted but repository-wide pytest and a real temporary-fixture CLI smoke run were deferred."}
+  ],
+  "summary":{"passed":4,"failed":1,"total":5,"pass_rate":0.8},
+  "claims":[{"claim":"The installed wheel includes workflow modules and the console entry point","type":"factual","verified":true,"evidence":"result.md lines 55-58 report wheel packaging inspection."},{"claim":"The CLI works end to end","type":"quality","verified":false,"evidence":"The report explicitly deferred the end-to-end smoke run."}],
+  "eval_feedback":{"suggestions":[{"reason":"The smoke-test assertion is meaningful but remains unverified because the run deferred it."}],"overall":"Most design and documentation expectations are evidenced; end-to-end behavior is unverified."}
+}

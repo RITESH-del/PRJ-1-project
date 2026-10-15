@@ -1,0 +1,12 @@
+{
+  "expectations": [
+    {"text":"The installed console entry point and root --help expose the CLI plus data/config command groups.","passed":true,"evidence":"result.md lines 3-7 report a Typer CLI and repaired entry point; lines 5-6 list the command surface."},
+    {"text":"A root-level TOML configuration and explicit CLI override precedence cover the requested dataset settings without source edits.","passed":true,"evidence":"result.md lines 16-18 report TOML precedence and configurable paths, seeds, archive selection, split ratios, and preprocessing settings."},
+    {"text":"Existing dataset and script implementations are called directly rather than duplicated or shell-launched from the new CLI.","passed":true,"evidence":"result.md lines 8-10 say existing processing functions were retained and extraction/interim utilities were parameterized; no shell-launching is reported."},
+    {"text":"Both AGENTS.md and CONTRIBUTING.md document the same canonical commands, config path, and precedence.","passed":true,"evidence":"result.md lines 13-14 report copy-pasteable CLI/config documentation in both files."},
+    {"text":"Focused tests and a temporary-fixture smoke path demonstrate the CLI works end to end.","passed":false,"evidence":"result.md lines 26-29 report only targeted syntax compilation; full tests, lint, package build, and installed-console smoke were deferred."}
+  ],
+  "summary":{"passed":4,"failed":1,"total":5,"pass_rate":0.8},
+  "claims":[{"claim":"The CLI works end to end","type":"quality","verified":false,"evidence":"End-to-end smoke verification was explicitly deferred."}],
+  "eval_feedback":{"suggestions":[{"reason":"The smoke-test assertion is not demonstrated in this run."}],"overall":"Baseline independently produced a broad implementation, but did not execute end-to-end verification."}
+}

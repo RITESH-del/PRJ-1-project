@@ -95,3 +95,5 @@ target/
 .pytest_cache
 
 user_manual.pdf
+
+/output/

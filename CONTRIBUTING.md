@@ -1,72 +1,145 @@
 # Contributing to TB Detection Model
 
-This guide helps contributors get up to speed with the repository’s current scaffold and the **AGENTS.md** / **RULES.md** policies.
+This guide covers the supported dataset workflow. `AGENTS.md` contains the
+agent-facing repository contract; the installed CLI `--help` output is the
+authoritative command reference.
 
----
+## Installation and environment
 
-## 📋 Quick start
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/your-org/TB_Detection_Model.git
-   cd TB_Detection_Model
-   ```
-2. **Install dependencies**
-   ```bash
-   make requirements   # installs from requirements.txt
-   pip install -e .   # editable install
-   ```
-3. **Run the data extraction pipeline**
-   ```bash
-   python src/data/extract.py   # extracts ZIPs into data/interim/
-   python src/data/create_interim.py   # creates a random‑sampled interim set
-   ```
-   > Note: the `make data` target is a stub; invoke the scripts directly.
-4. **Lint the code**
-   ```bash
-   make lint   # runs flake8 on src/
-   ```
-5. **Explore notebooks**
-   Open any notebook in `notebooks/` (e.g., `01_data_exploration.ipynb`) with Jupyter.
+From the repository root:
 
----
+```bash
+uv sync
+```
 
-## 🛠️ Development workflow
-- Follow **AGENTS.md** for the recommended build, data‑pipeline, and workflow commands.
-- Adhere to **RULES.md** – never commit generated files, add unit tests for new code, run `make lint` before committing, and set a fixed random seed when sampling data.
-- Add or update tests in a `tests/` directory and run them with `pytest` (or `make test` when added).
-- Keep `architecture.md`, `AGENTS.md`, and this `CONTRIBUTING.md` in sync when the pipeline, model, or data layout changes. Use clear headings and concise bullet points.
+The project requires Python 3.12 or newer. Use `.venv/bin/python` and
+`.venv/bin/tb-detection-model` for repository commands.
 
----
+## CLI discovery
 
-## 🤝 Pull‑request process
-1. **Branch** off `main` with a descriptive name (e.g., `feat/add‑training‑script`).
-2. **Make changes** following the project conventions.
-3. **Run lint and tests** locally:
-   ```bash
-   make lint
-   pytest  # after adding a test suite
-   ```
-4. **Commit** with a meaningful message; commit linting is enforced by `make lint`.
-5. **Open a PR** targeting `main`.
-6. **Review** – a maintainer will check code style, test coverage, and adherence to sticky rules.
-7. **Merge** – once approved, the PR will be merged and CI (if configured) will run the lint step.
+Start with the root and grouped help pages:
 
----
+```bash
+  source .venv/bin/activate
+  tb-detection-model --help
+  tb-detection-model data --help
+  tb-detection-model config --help
+```
 
-## 📚 Resources
-- **AGENTS.md** – project‑wide instructions and workflow.
-- **RULES.md** – sticky rules that must never be violated.
-- **architecture.md** – high‑level overview of the repository structure.
-- **Makefile** – shortcuts (`make requirements`, `make lint`).
+The root command also reports its version:
 
----
+```bash
+.venv/bin/tb-detection-model --version
+```
 
-## 🐞 Reporting issues
-Open an issue with:
-- Clear title.
-- Steps to reproduce (if applicable).
-- Expected vs. actual behavior.
+## Recommended dataset build
 
----
+The supported production path reads raw ZIP archives and writes deterministic,
+patient-grouped, preprocessed PNGs:
 
-We look forward to your contributions! 🎉
+```bash
+.venv/bin/tb-detection-model data build
+```
+
+The output is `data/processed/{train,val,test}/{TB,Normal}/*.png` plus
+`data/processed/manifest.csv`. Raw archives are read-only.
+
+For source-segmented evaluation:
+
+```bash
+.venv/bin/tb-detection-model data build \
+  --seed 42 \
+  --train-archive nih.zip \
+  --train-archive mont_139.zip \
+  --validation-archive shenzen.zip \
+  --test-archive shenzen.zip
+```
+
+All three archive groups are required when archive selection is used. An
+archive listed for validation and test is split by patient group between those
+outputs. Unlisted ZIP files are ignored.
+
+## Configuration and override precedence
+
+`tb-detection.toml` is the checked-in root-level example. Create a starter at
+another path with:
+
+```bash
+.venv/bin/tb-detection-model config init --path /tmp/tb-experiment.toml
+```
+
+Its sections and keys are:
+
+- `[dataset]`: `input_dir`, `output_dir`, `seed`, `target_size`,
+  `split_ratios`, `train_archives`, `validation_archives`, `test_archives`,
+  `manifest_filename`, and `archive_glob`;
+- `[preprocessing]`: `minimum_image_size`, `minimum_image_mean`, ROI fraction
+  ranges, `median_blur_kernel`, and CLAHE settings;
+- `[logging]`: `level`, `scan_log_interval`, and `process_log_interval`.
+
+Relative TOML paths are resolved from the TOML file directory. Effective
+settings are applied in this order:
+
+1. typed built-in defaults;
+2. root `tb-detection.toml`, when present;
+3. an explicitly supplied `--config PATH`;
+4. explicit command-line options.
+
+For example, CLI options take priority over both TOML layers:
+
+```bash
+.venv/bin/tb-detection-model data build \
+  --config tb-detection.toml \
+  --input-dir /tmp/tb/raw \
+  --output-dir /tmp/tb/processed \
+  --seed 17 \
+  --target-size 192 192 \
+  --train-ratio 0.70 \
+  --val-ratio 0.15 \
+  --test-ratio 0.15 \
+  --log-level WARNING
+```
+
+Inspect or validate the effective configuration without processing images:
+
+```bash
+.venv/bin/tb-detection-model config show --json
+.venv/bin/tb-detection-model config validate
+```
+
+`config init` refuses to overwrite an existing file unless `--force` is
+provided. Validation rejects invalid dimensions, split ratios that are not
+positive or do not sum to one, unsafe/equal input and output paths, incomplete
+archive assignments, invalid preprocessing ranges, and unknown log levels.
+
+## Validation and legacy commands
+
+The command inventory is:
+
+```text
+tb-detection-model data build       recommended raw-ZIP-to-PNG workflow
+tb-detection-model data validate    explicit unsupported failure
+tb-detection-model data extract     legacy extraction compatibility command
+tb-detection-model data interim     legacy sampling compatibility command
+tb-detection-model config init
+tb-detection-model config show
+tb-detection-model config validate
+```
+
+`data validate` fails explicitly because `src/data/validate_processed.py`
+currently references undefined helpers. It does not claim to validate data.
+The legacy commands remain available for compatibility, but they are not part
+of the current raw-ZIP-to-processed-dataset path.
+
+## Tests and lint
+
+Run the focused and regression suites from the repository root:
+
+```bash
+.venv/bin/python -m pytest -q
+make lint
+.venv/bin/python -m flake8 src tests
+```
+
+Use temporary ZIP fixtures for CLI smoke tests. Never commit generated
+`data/interim/` or `data/processed/` content, and never edit `data/raw/`.

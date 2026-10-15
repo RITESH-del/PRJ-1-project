@@ -1,0 +1,12 @@
+{
+  "expectations": [
+    {"text":"Help output exposes the recommended dataset command and clearly labeled extract, interim, and validation commands.","passed":true,"evidence":"result.md lines 18-30 list data build, legacy extract/interim, incomplete validate, and config commands; lines 61-64 report help verification."},
+    {"text":"The incomplete validation path fails explicitly with an actionable unsupported/incomplete message instead of returning success.","passed":true,"evidence":"result.md lines 35-37 define status 2 and an explicit explanation; line 72 reports the observed status 2 behavior."},
+    {"text":"The CLI calls real repository functions or gives a documented limitation; it does not shell out to source scripts or rewrite raw data.","passed":true,"evidence":"result.md lines 32-37 report direct Python calls and no shelling out; lines 16 and 73-74 report no raw/generated data changes and raw-path rejection."},
+    {"text":"AGENTS.md and CONTRIBUTING.md contain synchronized command references and identify the recommended versus legacy paths.","passed":true,"evidence":"result.md lines 13-14 report both docs updated; lines 20-37 identify recommended, legacy, and unsupported commands."},
+    {"text":"A temporary-input smoke run or focused test provides evidence for at least one real command and its exit behavior.","passed":true,"evidence":"result.md lines 56-74 report temporary ZIP smoke checks for help, config, build, legacy commands, unsupported validation, and raw-path rejection."}
+  ],
+  "summary":{"passed":5,"failed":0,"total":5,"pass_rate":1.0},
+  "claims":[{"claim":"Raw input remains unchanged during the smoke run","type":"factual","verified":true,"evidence":"result.md lines 67 and 73-74 report raw archive preservation and rejection of unsafe output paths."}],
+  "eval_feedback":{"suggestions":[],"overall":"All legacy-command expectations are evidenced by the report and smoke run."}
+}

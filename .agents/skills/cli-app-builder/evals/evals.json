@@ -1,0 +1,44 @@
+{
+  "skill_name": "cli-app-builder",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Turn this repository's current data workflow into a user- and agent-friendly CLI. Users should be able to run the recommended ZIP-to-processed-dataset path and adjust paths, seed, archive assignments, split ratios, and preprocessing settings through a root-level TOML file or CLI overrides without editing Python. Expose the existing extraction, interim, validation, and dataset-builder scripts as discoverable commands, repair the installed console entry point if needed, add tests, and update both AGENTS.md and CONTRIBUTING.md with copy-pasteable commands and config precedence.",
+      "expected_output": "A working Typer CLI with an installed entry point, TOML configuration and explicit override precedence, commands for the existing workflows, tests, synchronized AGENTS.md and CONTRIBUTING.md documentation, and a verified temporary-fixture smoke run.",
+      "files": [],
+      "expectations": [
+        "The installed console entry point and root --help expose the CLI plus data/config command groups.",
+        "A root-level TOML configuration and explicit CLI override precedence cover the requested dataset settings without source edits.",
+        "Existing dataset and script implementations are called directly rather than duplicated or shell-launched from the new CLI.",
+        "Both AGENTS.md and CONTRIBUTING.md document the same canonical commands, config path, and precedence.",
+        "Focused tests and a temporary-fixture smoke path demonstrate the CLI works end to end."
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "Make the dataset builder configurable for repeated experiments without source edits. Keep the existing preprocessing implementation as the source of truth, add a checked-in tb-detection.toml example plus config init/show/validate commands, and support CLI overrides for the seed, input/output directories, target image size, split ratios, and logging level. Reject invalid cross-field values before processing, test precedence and errors, and document the exact commands in AGENTS.md and CONTRIBUTING.md.",
+      "expected_output": "A typed configuration layer mapped to the existing dataset configuration, deterministic CLI/config precedence, preflight validation with actionable errors, focused tests, and synchronized documentation verified through the real CLI.",
+      "files": [],
+      "expectations": [
+        "tb-detection.toml and config init/show/validate commands expose the requested dataset settings.",
+        "The implementation maps configuration into the existing typed dataset configuration rather than maintaining duplicate preprocessing constants.",
+        "The effective precedence is deterministic and CLI overrides take priority over config-file values.",
+        "Invalid split ratios, dimensions, or other cross-field values fail during validation before processing begins with an actionable error.",
+        "Tests cover precedence and invalid configuration, and both command documents describe the same contract."
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "Add a safe command surface around all current data scripts in this Python repository. Include the recommended dataset command and clearly labeled legacy extract/interim commands, expose an incomplete validation script without pretending it works, and make every command discoverable through --help. Use the project's packaging conventions, avoid shelling out to source scripts, preserve raw data immutability, and report any unsupported command explicitly. Update the agent and contributor command references and run a smoke test with temporary input data.",
+      "expected_output": "A thin, package-installed CLI that routes to real implementations, clearly handles incomplete functionality, preserves existing behavior, updates both documentation files, and provides test/smoke evidence.",
+      "files": [],
+      "expectations": [
+        "Help output exposes the recommended dataset command and clearly labeled extract, interim, and validation commands.",
+        "The incomplete validation path fails explicitly with an actionable unsupported/incomplete message instead of returning success.",
+        "The CLI calls real repository functions or gives a documented limitation; it does not shell out to source scripts or rewrite raw data.",
+        "AGENTS.md and CONTRIBUTING.md contain synchronized command references and identify the recommended versus legacy paths.",
+        "A temporary-input smoke run or focused test provides evidence for at least one real command and its exit behavior."
+      ]
+    }
+  ]
+}
